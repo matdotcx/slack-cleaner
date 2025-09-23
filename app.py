@@ -2,6 +2,7 @@ import os
 import logging
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
+from slack_sdk import WebClient
 
 import config
 import database
@@ -16,6 +17,8 @@ app = App(
     token=config.SLACK_BOT_TOKEN,
     signing_secret=config.SLACK_SIGNING_SECRET
 )
+
+user_client = WebClient(token=config.SLACK_USER_TOKEN)
 
 @app.message_shortcut("delete_my_message")
 def handle_message_shortcut(ack, body, client, logger):
@@ -194,7 +197,7 @@ def handle_approve_deletion(ack, body, client, logger):
         requester_id = value_parts[2]
 
         try:
-            deletion_result = client.chat_delete(
+            deletion_result = user_client.chat_delete(
                 channel=channel_id,
                 ts=message_ts
             )

@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+SLACK_USER_TOKEN = os.environ.get("SLACK_USER_TOKEN")
 SLACK_SIGNING_SECRET = os.environ.get("SLACK_SIGNING_SECRET")
 SLACK_APP_TOKEN = os.environ.get("SLACK_APP_TOKEN")
 
@@ -21,6 +22,7 @@ def is_admin(user_id: str) -> bool:
 def validate_config():
     required = {
         "SLACK_BOT_TOKEN": SLACK_BOT_TOKEN,
+        "SLACK_USER_TOKEN": SLACK_USER_TOKEN,
         "SLACK_SIGNING_SECRET": SLACK_SIGNING_SECRET,
         "SLACK_APP_TOKEN": SLACK_APP_TOKEN,
         "ADMIN_REVIEW_CHANNEL": ADMIN_REVIEW_CHANNEL,
