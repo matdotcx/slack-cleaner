@@ -104,30 +104,11 @@ def handle_message_shortcut(ack, body, client, logger):
                 "type": "divider"
             },
             {
-                "type": "actions",
-                "block_id": "deletion_actions",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "✅ Approve Deletion"
-                        },
-                        "style": "primary",
-                        "action_id": "approve_deletion",
-                        "value": f"{channel_id}|{message_ts}|{user_id}"
-                    },
-                    {
-                        "type": "button",
-                        "text": {
-                            "type": "plain_text",
-                            "text": "❌ Deny Request"
-                        },
-                        "style": "danger",
-                        "action_id": "deny_deletion",
-                        "value": f"{channel_id}|{message_ts}|{user_id}"
-                    }
-                ]
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "React with ✅ to approve or ❌ to deny"
+                }
             }
         ]
 
@@ -135,6 +116,18 @@ def handle_message_shortcut(ack, body, client, logger):
             channel=config.ADMIN_REVIEW_CHANNEL,
             blocks=blocks,
             text=f"Deletion request from {requester_name}"
+        )
+
+        client.reactions_add(
+            channel=config.ADMIN_REVIEW_CHANNEL,
+            name="white_check_mark",
+            timestamp=admin_message["ts"]
+        )
+
+        client.reactions_add(
+            channel=config.ADMIN_REVIEW_CHANNEL,
+            name="x",
+            timestamp=admin_message["ts"]
         )
 
         request_id = database.create_deletion_request(
@@ -363,6 +356,105 @@ def handle_deny_deletion(ack, body, client, logger):
             )
         except:
             pass
+
+@app.event("reaction_added")
+def handle_reaction_added(event, client, logger):
+    if event["reaction"] not in ["white_check_mark", "x"]:
+        return
+
+    if event["item"]["channel"] != config.ADMIN_REVIEW_CHANNEL:
+        return
+
+    user_id = event["user"]
+    if not config.is_admin(user_id):
+        return
+
+    message_ts = event["item"]["ts"]
+
+    request = database.get_deletion_request_by_admin_message(message_ts)
+    if not request or request["status"] != "pending":
+        return
+
+    admin_info = client.users_info(user=user_id)
+    admin_name = admin_info["user"]["real_name"]
+
+    if event["reaction"] == "white_check_mark":
+        try:
+            deletion_result = user_client.chat_delete(
+                channel=request["channel_id"],
+                ts=request["message_ts"]
+            )
+
+            if not deletion_result.get("ok"):
+                raise Exception(f"Deletion failed: {deletion_result.get('error', 'Unknown error')}")
+
+            database.update_deletion_request(
+                request_id=request["id"],
+                status="approved",
+                admin_id=user_id,
+                admin_name=admin_name
+            )
+
+            client.chat_postMessage(
+                channel=request["requester_id"],
+                text=f"✅ Your message deletion request has been approved by <@{user_id}> and the message has been deleted."
+            )
+
+            if config.AUDIT_LOG_CHANNEL:
+                client.chat_postMessage(
+                    channel=config.AUDIT_LOG_CHANNEL,
+                    text=f"🗑️ Message deleted by <@{user_id}>\n• Author: <@{request['message_author_id']}>\n• Channel: <#{request['channel_id']}>\n• Timestamp: {request['message_ts']}"
+                )
+
+            client.chat_update(
+                channel=config.ADMIN_REVIEW_CHANNEL,
+                ts=message_ts,
+                text=f"✅ Deletion approved by {admin_name}",
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"✅ *Approved by <@{user_id}>*\n\nOriginal request from <@{request['requester_id']}> in <#{request['channel_id']}>"
+                        }
+                    }
+                ]
+            )
+
+            logger.info(f"Deletion approved via reaction: ID={request['id']}, Admin={user_id}")
+
+        except Exception as e:
+            logger.error(f"Error approving deletion via reaction: {e}")
+
+    elif event["reaction"] == "x":
+        database.update_deletion_request(
+            request_id=request["id"],
+            status="denied",
+            admin_id=user_id,
+            admin_name=admin_name
+        )
+
+        client.chat_postMessage(
+            channel=request["requester_id"],
+            text=f"❌ Your message deletion request has been denied by <@{user_id}>."
+        )
+
+        client.chat_update(
+            channel=config.ADMIN_REVIEW_CHANNEL,
+            ts=message_ts,
+            text=f"❌ Deletion denied by {admin_name}",
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"❌ *Denied by <@{user_id}>*\n\nOriginal request from <@{request['requester_id']}> in <#{request['channel_id']}>"
+                    }
+                }
+            ]
+        )
+
+        logger.info(f"Deletion denied via reaction: ID={request['id']}, Admin={user_id}")
 
 @app.event("app_home_opened")
 def handle_app_home_opened(client, event, logger):
