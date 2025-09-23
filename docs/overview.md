@@ -198,7 +198,7 @@ These are loaded from the `/opt/slack-cleaner/.env` file on the server.
 ## Support
 
 For any issues or questions about the app:
-- Check the [README.md](README.md) for setup and troubleshooting
+- Check the [readme.md](readme.md) for setup and troubleshooting
 - View logs with `sudo journalctl -u slack-cleaner -f`
 - Monitor the deletion requests database for audit information
 - Contact the development team for feature requests or bugs
