@@ -426,6 +426,32 @@ def handle_reaction_added(event, client, logger):
         except Exception as e:
             logger.error(f"Error approving deletion via reaction: {e}")
 
+            error_str = str(e)
+            if "channel_not_found" in error_str:
+                error_msg = "⚠️ Admin user must be a member of the channel to delete messages. Please join the channel and try again."
+            else:
+                error_msg = f"Error: {error_str}"
+
+            client.chat_update(
+                channel=config.ADMIN_REVIEW_CHANNEL,
+                ts=message_ts,
+                text=f"Error: {error_msg}",
+                blocks=[
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"❌ *Error by <@{user_id}>*\n\n{error_msg}\n\nOriginal request from <@{request['requester_id']}> in <#{request['channel_id']}>"
+                        }
+                    }
+                ]
+            )
+
+            client.chat_postMessage(
+                channel=request["requester_id"],
+                text=f"❌ Deletion failed.\n\nReason: {error_msg}"
+            )
+
     elif event["reaction"] == "x":
         database.update_deletion_request(
             request_id=request["id"],
