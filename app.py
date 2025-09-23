@@ -29,11 +29,13 @@ def handle_message_shortcut(ack, body, client, logger):
     message_text = message.get("text", "")
 
     if user_id != message_user_id:
-        client.chat_postEphemeral(
-            channel=channel_id,
-            user=user_id,
-            text=f"❌ You can only request deletion of your own messages."
-        )
+        try:
+            client.chat_postMessage(
+                channel=user_id,
+                text=f"❌ You can only request deletion of your own messages."
+            )
+        except:
+            pass
         return
 
     try:
@@ -136,21 +138,22 @@ def handle_message_shortcut(ack, body, client, logger):
             admin_message_ts=admin_message["ts"]
         )
 
-        client.chat_postEphemeral(
-            channel=channel_id,
-            user=user_id,
-            text="✅ Your deletion request has been submitted to the admins for review."
+        client.chat_postMessage(
+            channel=user_id,
+            text=f"✅ Your deletion request has been submitted to the admins for review.\n\nMessage from <#{channel_id}>:\n```{preview_text}```"
         )
 
         logger.info(f"Deletion request created: ID={request_id}, User={user_id}, Channel={channel_id}")
 
     except Exception as e:
         logger.error(f"Error handling deletion request: {e}")
-        client.chat_postEphemeral(
-            channel=channel_id,
-            user=user_id,
-            text=f"❌ Error submitting deletion request: {str(e)}"
-        )
+        try:
+            client.chat_postMessage(
+                channel=user_id,
+                text=f"❌ Error submitting deletion request: {str(e)}"
+            )
+        except:
+            pass
 
 @app.action("approve_deletion")
 def handle_approve_deletion(ack, body, client, logger):
@@ -160,11 +163,13 @@ def handle_approve_deletion(ack, body, client, logger):
     admin_name = body["user"]["name"]
 
     if not config.is_admin(admin_id):
-        client.chat_postEphemeral(
-            channel=body["channel"]["id"],
-            user=admin_id,
-            text="❌ You are not authorized to approve deletion requests."
-        )
+        try:
+            client.chat_postMessage(
+                channel=admin_id,
+                text="❌ You are not authorized to approve deletion requests."
+            )
+        except:
+            pass
         return
 
     try:
@@ -239,11 +244,13 @@ def handle_approve_deletion(ack, body, client, logger):
 
     except Exception as e:
         logger.error(f"Error approving deletion: {e}")
-        client.chat_postEphemeral(
-            channel=body["channel"]["id"],
-            user=admin_id,
-            text=f"❌ Error approving deletion: {str(e)}"
-        )
+        try:
+            client.chat_postMessage(
+                channel=admin_id,
+                text=f"❌ Error approving deletion: {str(e)}"
+            )
+        except:
+            pass
 
 @app.action("deny_deletion")
 def handle_deny_deletion(ack, body, client, logger):
@@ -253,11 +260,13 @@ def handle_deny_deletion(ack, body, client, logger):
     admin_name = body["user"]["name"]
 
     if not config.is_admin(admin_id):
-        client.chat_postEphemeral(
-            channel=body["channel"]["id"],
-            user=admin_id,
-            text="❌ You are not authorized to deny deletion requests."
-        )
+        try:
+            client.chat_postMessage(
+                channel=admin_id,
+                text="❌ You are not authorized to deny deletion requests."
+            )
+        except:
+            pass
         return
 
     try:
@@ -305,11 +314,13 @@ def handle_deny_deletion(ack, body, client, logger):
 
     except Exception as e:
         logger.error(f"Error denying deletion: {e}")
-        client.chat_postEphemeral(
-            channel=body["channel"]["id"],
-            user=admin_id,
-            text=f"❌ Error denying deletion: {str(e)}"
-        )
+        try:
+            client.chat_postMessage(
+                channel=admin_id,
+                text=f"❌ Error denying deletion: {str(e)}"
+            )
+        except:
+            pass
 
 @app.event("app_home_opened")
 def handle_app_home_opened(client, event, logger):
