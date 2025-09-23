@@ -44,9 +44,9 @@ In your app settings, go to **OAuth & Permissions** and add these Bot Token Scop
 - `channels:read` - Read channel information
 - `groups:read` - Read private channel information
 - `im:write` - Send DMs
-- `im:read` - Read DMs
 - `reactions:write` - Add reactions to messages
-- `reactions:read` - Read reactions
+
+**See [REQUIRED_SCOPES.md](REQUIRED_SCOPES.md) for the complete and minimal list of required scopes.**
 
 ### 3. Create User OAuth Token
 
@@ -55,7 +55,6 @@ In your app settings, go to **OAuth & Permissions** and add these Bot Token Scop
 1. Go to **OAuth & Permissions**
 2. Under "User Token Scopes", add:
    - `chat:write` - Delete messages as the user
-   - `users:read` - Read user information
 3. After adding scopes, reinstall the app to your workspace
 4. Copy the User OAuth Token (starts with `xoxp-`)
 
