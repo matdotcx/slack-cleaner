@@ -28,6 +28,8 @@ def handle_message_shortcut(ack, body, client, logger):
     message_user_id = message.get("user", "")
     message_text = message.get("text", "")
 
+    logger.info(f"Deletion request: user={user_id}, channel={channel_id}, msg_user={message_user_id}")
+
     if user_id != message_user_id:
         try:
             client.chat_postMessage(
@@ -42,13 +44,19 @@ def handle_message_shortcut(ack, body, client, logger):
         user_info = client.users_info(user=user_id)
         requester_name = user_info["user"]["real_name"]
 
-        channel_info = client.conversations_info(channel=channel_id)
-        channel_name = channel_info["channel"]["name"]
+        try:
+            channel_info = client.conversations_info(channel=channel_id)
+            channel_name = channel_info["channel"]["name"]
+        except:
+            channel_name = "Unknown"
 
-        message_link = client.chat_getPermalink(
-            channel=channel_id,
-            message_ts=message_ts
-        )["permalink"]
+        try:
+            message_link = client.chat_getPermalink(
+                channel=channel_id,
+                message_ts=message_ts
+            )["permalink"]
+        except:
+            message_link = f"Channel: {channel_id}, TS: {message_ts}"
 
         preview_text = message_text[:200] + "..." if len(message_text) > 200 else message_text
 
