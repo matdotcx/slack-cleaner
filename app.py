@@ -194,10 +194,13 @@ def handle_approve_deletion(ack, body, client, logger):
         requester_id = value_parts[2]
 
         try:
-            client.chat_delete(
+            deletion_result = client.chat_delete(
                 channel=channel_id,
                 ts=message_ts
             )
+
+            if not deletion_result.get("ok"):
+                raise Exception(f"Deletion failed: {deletion_result.get('error', 'Unknown error')}")
 
             database.update_deletion_request(
                 request_id=request["id"],
@@ -238,17 +241,45 @@ def handle_approve_deletion(ack, body, client, logger):
             logger.info(f"Deletion approved: ID={request['id']}, Admin={admin_id}")
 
         except Exception as e:
-            if "message_not_found" in str(e):
+            error_str = str(e)
+            if "message_not_found" in error_str:
                 error_msg = "The message may have already been deleted."
-                database.update_deletion_request(
-                    request_id=request["id"],
-                    status="error",
-                    admin_id=admin_id,
-                    admin_name=admin_name,
-                    notes=error_msg
-                )
+            elif "channel_not_found" in error_str or "not_in_channel" in error_str:
+                error_msg = "⚠️ Bot must be invited to the channel to delete messages. Please invite the bot to the channel and try again."
             else:
-                raise
+                error_msg = f"Error: {error_str}"
+
+            database.update_deletion_request(
+                request_id=request["id"],
+                status="error",
+                admin_id=admin_id,
+                admin_name=admin_name,
+                notes=error_msg
+            )
+
+            updated_blocks = body["message"]["blocks"][:-1]
+            updated_blocks.append({
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f"❌ *Error by <@{admin_id}>:* {error_msg}"
+                    }
+                ]
+            })
+
+            client.chat_update(
+                channel=body["channel"]["id"],
+                ts=admin_message_ts,
+                blocks=updated_blocks,
+                text=f"Deletion failed: {error_msg}"
+            )
+
+            client.chat_postMessage(
+                channel=requester_id,
+                text=f"❌ Your deletion request could not be completed.\n\nReason: {error_msg}\n\nIf the bot needs to be invited to the channel, please ask an admin to invite it: `/invite @{client.auth_test()['user']}`"
+            )
+            return
 
     except Exception as e:
         logger.error(f"Error approving deletion: {e}")
