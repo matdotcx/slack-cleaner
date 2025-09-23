@@ -117,7 +117,7 @@ In your app settings, go to **OAuth & Permissions** and add these Bot Token Scop
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/slack-cleaner.git
+git clone https://github.com/matdotcx/slack-cleaner.git
 cd slack-cleaner
 ```
 
