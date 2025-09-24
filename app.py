@@ -74,21 +74,28 @@ def handle_message_shortcut(ack, body, client, logger):
 
                 if file_type == "image":
                     message_preview = f"📷 *[Image: {file_name}]*"
+                    user_preview = f"📷 Image: {file_name}"
                 else:
                     message_preview = f"📎 *[File: {file_name}]*"
+                    user_preview = f"📎 File: {file_name}"
 
                 if message_text:
                     message_preview = f"> {message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n{message_preview}"
+                    user_preview = f"{message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n{user_preview}"
             else:
                 if message_text:
                     message_preview = f"> {message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n📎 *Includes {file_count} file(s)*"
+                    user_preview = f"{message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n📎 Includes {file_count} file(s)"
                 else:
                     message_preview = f"📎 *{file_count} file(s)*"
+                    user_preview = f"📎 {file_count} file(s)"
         elif message_text:
             preview_text = message_text[:200] + "..." if len(message_text) > 200 else message_text
             message_preview = f"> {preview_text}"
+            user_preview = preview_text
         else:
             message_preview = "_[No text content]_"
+            user_preview = "[No text content]"
 
         blocks = [
             {
@@ -171,7 +178,7 @@ def handle_message_shortcut(ack, body, client, logger):
 
         client.chat_postMessage(
             channel=user_id,
-            text=f"✅ Your deletion request has been submitted to the admins for review.\n\nMessage from <#{channel_id}>:\n```{preview_text}```"
+            text=f"✅ Your deletion request has been submitted to the admins for review.\n\nMessage from <#{channel_id}>:\n{user_preview}"
         )
 
         logger.info(f"Deletion request created: ID={request_id}, User={user_id}, Channel={channel_id}")
