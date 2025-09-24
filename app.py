@@ -61,14 +61,41 @@ def handle_message_shortcut(ack, body, client, logger):
         except:
             message_link = f"Channel: {channel_id}, TS: {message_ts}"
 
-        preview_text = message_text[:200] + "..." if len(message_text) > 200 else message_text
+        has_files = "files" in message and len(message["files"]) > 0
+
+        if has_files:
+            files = message["files"]
+            file_count = len(files)
+
+            if file_count == 1:
+                file = files[0]
+                file_type = file.get("mimetype", "").split("/")[0]
+                file_name = file.get("name", "file")
+
+                if file_type == "image":
+                    message_preview = f"📷 *[Image: {file_name}]*"
+                else:
+                    message_preview = f"📎 *[File: {file_name}]*"
+
+                if message_text:
+                    message_preview = f"> {message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n{message_preview}"
+            else:
+                if message_text:
+                    message_preview = f"> {message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n📎 *Includes {file_count} file(s)*"
+                else:
+                    message_preview = f"📎 *{file_count} file(s)*"
+        elif message_text:
+            preview_text = message_text[:200] + "..." if len(message_text) > 200 else message_text
+            message_preview = f"> {preview_text}"
+        else:
+            message_preview = "_[No text content]_"
 
         blocks = [
             {
                 "type": "header",
                 "text": {
                     "type": "plain_text",
-                    "text": "🗑️ New Deletion Request"
+                    "text": "New Deletion Request"
                 }
             },
             {
@@ -88,7 +115,7 @@ def handle_message_shortcut(ack, body, client, logger):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"*Message:*\n```{preview_text}```"
+                    "text": f"*Message:*\n{message_preview}"
                 }
             },
             {
