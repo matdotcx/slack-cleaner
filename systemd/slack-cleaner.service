@@ -1,0 +1,52 @@
+[Unit]
+Description=Slack Message Deletion Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=slack-bot
+Group=slack-bot
+WorkingDirectory=/opt/slack-cleaner
+
+# Environment variables (alternatively use EnvironmentFile)
+Environment="PYTHONUNBUFFERED=1"
+
+# Load environment variables from file
+EnvironmentFile=/opt/slack-cleaner/.env
+
+# Start command
+ExecStart=/opt/slack-cleaner/venv/bin/python app.py
+
+# Automatic restart policies
+Restart=always
+RestartSec=10s
+StartLimitInterval=300s
+StartLimitBurst=5
+
+# Timeout for start/stop
+TimeoutStartSec=60s
+TimeoutStopSec=30s
+
+# Resource limits (adjust based on your VPS)
+MemoryMax=512M
+MemoryHigh=384M
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=slack-cleaner
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/slack-cleaner
+
+# Allow graceful shutdown
+KillMode=mixed
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

@@ -5,6 +5,7 @@ A self-service Slack app for message deletion with admin approval workflow.
 ## Quick Links
 
 - [Installation & Setup Guide](docs/readme.md)
+- [VPS Deployment Guide](docs/vps-deployment.md) - Recommended for reliability
 - [Railway Deployment Guide](docs/railway-deployment.md)
 - [Overview & Benefits](docs/overview.md)
 - [Required API Scopes](docs/required-scopes.md)
@@ -13,13 +14,14 @@ A self-service Slack app for message deletion with admin approval workflow.
 
 1. Set up the Slack app following [docs/readme.md](docs/readme.md)
 2. Configure environment variables
-3. Deploy to Railway (recommended) or your own server
+3. Deploy to VPS (recommended - see [vps-deployment.md](docs/vps-deployment.md)) or Railway
 
 ## Documentation
 
 All documentation is in the `/docs` folder:
 
 - **[readme.md](docs/readme.md)** - Complete installation and setup instructions
+- **[vps-deployment.md](docs/vps-deployment.md)** - Deploy to VPS with systemd (recommended)
 - **[railway-deployment.md](docs/railway-deployment.md)** - Deploy to Railway with PostgreSQL
 - **[overview.md](docs/overview.md)** - What it does, why it exists, how it helps admins
 - **[required-scopes.md](docs/required-scopes.md)** - Exact minimal API scopes needed

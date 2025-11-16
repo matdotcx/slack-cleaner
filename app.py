@@ -583,7 +583,7 @@ def handle_app_home_opened(client, event, logger):
     )
 
 if __name__ == "__main__":
-    # Start HTTP health check server in background thread for Railway
+    # Start HTTP health check server in background thread for Railway/monitoring
     # Use :: (IPv6) for Railway compatibility, fallback to 0.0.0.0 for local dev
     try:
         # Try IPv6 first (Railway requirement)
@@ -597,7 +597,13 @@ if __name__ == "__main__":
     http_thread = threading.Thread(target=http_server.serve_forever, daemon=True)
     http_thread.start()
 
-    # Start Slack Socket Mode handler (blocks)
-    handler = SocketModeHandler(app, config.SLACK_APP_TOKEN)
-    logger.info("⚡️ Slack app is running!")
-    handler.start()
+    # Start Slack Socket Mode handler with error handling
+    try:
+        handler = SocketModeHandler(app, config.SLACK_APP_TOKEN)
+        logger.info("⚡️ Slack app is running!")
+        handler.start()
+    except KeyboardInterrupt:
+        logger.info("Shutting down gracefully...")
+    except Exception as e:
+        logger.critical(f"FATAL ERROR: Slack app crashed: {e}", exc_info=True)
+        raise
