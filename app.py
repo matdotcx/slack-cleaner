@@ -405,10 +405,14 @@ def handle_deny_deletion(ack, body, client, logger):
 
 @app.event("reaction_added")
 def handle_reaction_added(event, client, logger):
+    logger.info(f"Reaction event received: reaction={event['reaction']}, channel={event['item']['channel']}, user={event['user']}")
+
     if event["reaction"] not in ["white_check_mark", "x"]:
+        logger.info(f"Ignoring reaction '{event['reaction']}' (not white_check_mark or x)")
         return
 
     if event["item"]["channel"] != config.ADMIN_REVIEW_CHANNEL:
+        logger.info(f"Ignoring reaction in channel {event['item']['channel']} (expected {config.ADMIN_REVIEW_CHANNEL})")
         return
 
     user_id = event["user"]
