@@ -584,10 +584,18 @@ def handle_app_home_opened(client, event, logger):
 
 if __name__ == "__main__":
     # Start HTTP health check server in background thread for Railway
-    http_server = HTTPServer(('0.0.0.0', config.PORT), HealthCheckHandler)
+    # Use :: (IPv6) for Railway compatibility, fallback to 0.0.0.0 for local dev
+    try:
+        # Try IPv6 first (Railway requirement)
+        http_server = HTTPServer(('::', config.PORT), HealthCheckHandler)
+        logger.info(f"HTTP health check server running on [::]:{config.PORT} (IPv6)")
+    except OSError:
+        # Fallback to IPv4 for local development
+        http_server = HTTPServer(('0.0.0.0', config.PORT), HealthCheckHandler)
+        logger.info(f"HTTP health check server running on 0.0.0.0:{config.PORT} (IPv4)")
+
     http_thread = threading.Thread(target=http_server.serve_forever, daemon=True)
     http_thread.start()
-    logger.info(f"HTTP health check server running on port {config.PORT}")
 
     # Start Slack Socket Mode handler (blocks)
     handler = SocketModeHandler(app, config.SLACK_APP_TOKEN)
