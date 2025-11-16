@@ -1,5 +1,7 @@
 import os
 import logging
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_sdk import WebClient
@@ -9,6 +11,16 @@ import database
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'OK')
+
+    def log_message(self, format, *args):
+        pass  # Suppress HTTP server logs
 
 config.validate_config()
 database.init_db()
@@ -567,6 +579,13 @@ def handle_app_home_opened(client, event, logger):
     )
 
 if __name__ == "__main__":
+    # Start HTTP health check server in background thread for Railway
+    http_server = HTTPServer(('0.0.0.0', config.PORT), HealthCheckHandler)
+    http_thread = threading.Thread(target=http_server.serve_forever, daemon=True)
+    http_thread.start()
+    logger.info(f"HTTP health check server running on port {config.PORT}")
+
+    # Start Slack Socket Mode handler (blocks)
     handler = SocketModeHandler(app, config.SLACK_APP_TOKEN)
-    logger.info(f"⚡️ Slack app is running on port {config.PORT}!")
+    logger.info("⚡️ Slack app is running!")
     handler.start()
