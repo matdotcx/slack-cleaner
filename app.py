@@ -532,6 +532,15 @@ def handle_reaction_added(event, client, logger):
 
         logger.info(f"Deletion denied via reaction: ID={request['id']}, Admin={user_id}")
 
+@app.event("message")
+def handle_message_events(event, logger):
+    """
+    Silently acknowledge message events.
+    The app subscribes to message events via Event Subscriptions
+    (required for reaction_added to work), but doesn't need to process them.
+    """
+    pass
+
 @app.event("app_home_opened")
 def handle_app_home_opened(client, event, logger):
     user_id = event["user"]
