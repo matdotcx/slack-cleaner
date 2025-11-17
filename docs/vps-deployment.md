@@ -91,7 +91,11 @@ ADMIN_REVIEW_CHANNEL=C123456789
 
 # Optional Configuration
 AUDIT_LOG_CHANNEL=C987654321
+
+# Set to "true" to allow anyone in the admin review channel to approve/deny
+# Set to "false" to only allow users listed in ADMIN_USER_IDS
 ALLOW_ALL_CHANNEL_MEMBERS=false
+
 PORT=3000
 
 # Database Configuration
