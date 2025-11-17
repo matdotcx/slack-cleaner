@@ -78,11 +78,15 @@ In your app settings, go to **OAuth & Permissions** and add these Bot Token Scop
 
 ### 6. Enable Event Subscriptions
 
+**CRITICAL STEP - Do not skip this!**
+
 1. Go to **Event Subscriptions**
-2. Enable Events
+2. **Enable Events** - Toggle this to ON (this is required!)
 3. Under "Subscribe to bot events", add:
    - `reaction_added` - For admin approval/denial reactions
 4. Save changes
+
+**Without Event Subscriptions enabled, the app will NOT receive reaction events and approval/denial will not work!**
 
 ### 7. Install App to Workspace
 
@@ -318,28 +322,40 @@ CREATE TABLE deletion_requests (
 
 ### Common Issues
 
-**1. Button clicks not working / Events not received**
+**1. Reactions not triggering approval/denial (most common issue)**
+- **Symptoms**: App receives deletion requests but nothing happens when you click ✅ or ❌
+- **Cause**: Event Subscriptions not enabled or `reaction_added` event not subscribed
+- **Solution**:
+  1. Go to https://api.slack.com/apps and select your app
+  2. Navigate to "Event Subscriptions"
+  3. **Enable Events** (toggle to ON)
+  4. Under "Subscribe to bot events", add `reaction_added`
+  5. Save changes
+  6. You may need to reinstall the app after this change
+- **How to verify**: Check logs with `sudo journalctl -u slack-cleaner -f` and you should see `Reaction event received:` when clicking reactions
+
+**2. Button clicks not working / Events not received**
 - **Solution**: This app uses emoji reactions instead of interactive buttons due to Socket Mode limitations
 - Ensure Event Subscriptions are enabled with `reaction_added` event subscribed
 - Verify Socket Mode is enabled with a valid App-Level Token
 
-**2. "channel_not_found" error when deleting messages**
+**3. "channel_not_found" error when deleting messages**
 - **Cause**: The user who created the User OAuth Token is not a member of the channel
 - **Solution**: The admin user must join all channels where messages may be deleted
 - Run: `/join #channel-name` for each channel
 
-**3. App not responding to message shortcuts**
+**4. App not responding to message shortcuts**
 - Check that Socket Mode is enabled
 - Verify the App Token (starts with `xapp-`) is correct
 - Ensure the app is running: `sudo systemctl status slack-cleaner`
 - Check logs: `sudo journalctl -u slack-cleaner -f`
 
-**4. Permission errors / Missing scopes**
+**5. Permission errors / Missing scopes**
 - Verify all required Bot Token Scopes are added (especially `reactions:write`)
 - Add required User Token Scopes (`chat:write`)
 - Reinstall the app after adding new scopes
 
-**5. Database errors**
+**6. Database errors**
 - Ensure the app has write permissions to the directory
 - Check disk space is available
 - Database file should be automatically created

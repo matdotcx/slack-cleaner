@@ -39,11 +39,17 @@ Configure this under **Basic Information** → **App-Level Tokens**:
 
 ## Events to Subscribe To
 
-Under **Event Subscriptions** → **Subscribe to bot events**:
+**CRITICAL**: You must enable Event Subscriptions for the app to work!
+
+Under **Event Subscriptions**:
+1. **Enable Events** - Toggle this to ON
+2. Under **Subscribe to bot events**, add:
 
 | Event | Purpose |
 |-------|---------|
 | `reaction_added` | Detect admin approval/denial reactions |
+
+**Without this event subscription, the app will NOT respond to approval/denial reactions!**
 
 ## Interactive Components
 
