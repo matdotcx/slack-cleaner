@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 import threading
@@ -32,6 +33,170 @@ app = App(
 
 user_client = WebClient(token=config.SLACK_USER_TOKEN)
 
+
+def process_deletion_request(client, user_id, channel_id, message_ts, message_data, logger):
+    """
+    Core logic for processing a deletion request.
+    Builds admin message, posts to review channel, adds reactions,
+    stores in database, sends DM confirmation to user.
+
+    Args:
+        client: Slack WebClient for bot operations
+        user_id: ID of the user requesting deletion
+        channel_id: Channel where the message exists
+        message_ts: Timestamp of the message to delete
+        message_data: Dict containing message text and files
+        logger: Logger instance
+
+    Returns:
+        request_id: The database ID of the created deletion request
+
+    Raises:
+        Exception: If any step fails (caller should handle)
+    """
+    user_info = client.users_info(user=user_id)
+    requester_name = user_info["user"]["real_name"]
+
+    try:
+        channel_info = client.conversations_info(channel=channel_id)
+        channel_name = channel_info["channel"]["name"]
+    except:
+        channel_name = "Unknown"
+
+    try:
+        message_link = client.chat_getPermalink(
+            channel=channel_id,
+            message_ts=message_ts
+        )["permalink"]
+    except:
+        message_link = f"Channel: {channel_id}, TS: {message_ts}"
+
+    message_text = message_data.get("text", "")
+    has_files = "files" in message_data and len(message_data["files"]) > 0
+
+    if has_files:
+        files = message_data["files"]
+        file_count = len(files)
+
+        if file_count == 1:
+            file = files[0]
+            file_type = file.get("mimetype", "").split("/")[0]
+            file_name = file.get("name", "file")
+
+            if file_type == "image":
+                message_preview = f"📷 *[Image: {file_name}]*"
+                user_preview = f"📷 Image: {file_name}"
+            else:
+                message_preview = f"📎 *[File: {file_name}]*"
+                user_preview = f"📎 File: {file_name}"
+
+            if message_text:
+                message_preview = f"> {message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n{message_preview}"
+                user_preview = f"{message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n{user_preview}"
+        else:
+            if message_text:
+                message_preview = f"> {message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n📎 *Includes {file_count} file(s)*"
+                user_preview = f"{message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n📎 Includes {file_count} file(s)"
+            else:
+                message_preview = f"📎 *{file_count} file(s)*"
+                user_preview = f"📎 {file_count} file(s)"
+    elif message_text:
+        preview_text = message_text[:200] + "..." if len(message_text) > 200 else message_text
+        message_preview = f"> {preview_text}"
+        user_preview = preview_text
+    else:
+        message_preview = "_[No text content]_"
+        user_preview = "[No text content]"
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "New Deletion Request"
+            }
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Requester:*\n<@{user_id}>"
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Channel:*\n<#{channel_id}>"
+                }
+            ]
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Message:*\n{message_preview}"
+            }
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"<{message_link}|View original message>"
+                }
+            ]
+        },
+        {
+            "type": "divider"
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "React with ✅ to approve or ❌ to deny"
+            }
+        }
+    ]
+
+    admin_message = client.chat_postMessage(
+        channel=config.ADMIN_REVIEW_CHANNEL,
+        blocks=blocks,
+        text=f"Deletion request from {requester_name}"
+    )
+
+    client.reactions_add(
+        channel=config.ADMIN_REVIEW_CHANNEL,
+        name="white_check_mark",
+        timestamp=admin_message["ts"]
+    )
+
+    client.reactions_add(
+        channel=config.ADMIN_REVIEW_CHANNEL,
+        name="x",
+        timestamp=admin_message["ts"]
+    )
+
+    request_id = database.create_deletion_request(
+        message_ts=message_ts,
+        channel_id=channel_id,
+        channel_name=channel_name,
+        message_author_id=user_id,
+        message_author_name=requester_name,
+        message_text=message_text,
+        requester_id=user_id,
+        requester_name=requester_name,
+        admin_message_ts=admin_message["ts"]
+    )
+
+    client.chat_postMessage(
+        channel=user_id,
+        text=f"✅ Your deletion request has been submitted to the admins for review.\n\nMessage from <#{channel_id}>:\n{user_preview}"
+    )
+
+    logger.info(f"Deletion request created: ID={request_id}, User={user_id}, Channel={channel_id}")
+
+    return request_id
+
+
 @app.message_shortcut("delete_my_message")
 def handle_message_shortcut(ack, body, client, logger):
     ack()
@@ -41,7 +206,6 @@ def handle_message_shortcut(ack, body, client, logger):
     channel_id = body["channel"]["id"]
     message_ts = message["ts"]
     message_user_id = message.get("user", "")
-    message_text = message.get("text", "")
 
     logger.info(f"Deletion request: user={user_id}, channel={channel_id}, msg_user={message_user_id}")
 
@@ -55,148 +219,116 @@ def handle_message_shortcut(ack, body, client, logger):
             pass
         return
 
-    try:
-        user_info = client.users_info(user=user_id)
-        requester_name = user_info["user"]["real_name"]
+    # Create a message preview for the modal
+    message_text = message.get("text", "")
+    has_files = "files" in message and len(message["files"]) > 0
 
-        try:
-            channel_info = client.conversations_info(channel=channel_id)
-            channel_name = channel_info["channel"]["name"]
-        except:
-            channel_name = "Unknown"
-
-        try:
-            message_link = client.chat_getPermalink(
-                channel=channel_id,
-                message_ts=message_ts
-            )["permalink"]
-        except:
-            message_link = f"Channel: {channel_id}, TS: {message_ts}"
-
-        has_files = "files" in message and len(message["files"]) > 0
-
-        if has_files:
-            files = message["files"]
-            file_count = len(files)
-
-            if file_count == 1:
-                file = files[0]
-                file_type = file.get("mimetype", "").split("/")[0]
-                file_name = file.get("name", "file")
-
-                if file_type == "image":
-                    message_preview = f"📷 *[Image: {file_name}]*"
-                    user_preview = f"📷 Image: {file_name}"
-                else:
-                    message_preview = f"📎 *[File: {file_name}]*"
-                    user_preview = f"📎 File: {file_name}"
-
-                if message_text:
-                    message_preview = f"> {message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n{message_preview}"
-                    user_preview = f"{message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n{user_preview}"
+    if has_files:
+        files = message["files"]
+        file_count = len(files)
+        if file_count == 1:
+            file = files[0]
+            file_type = file.get("mimetype", "").split("/")[0]
+            file_name = file.get("name", "file")
+            if file_type == "image":
+                file_preview = f"📷 Image: {file_name}"
             else:
-                if message_text:
-                    message_preview = f"> {message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n📎 *Includes {file_count} file(s)*"
-                    user_preview = f"{message_text[:150]}{'...' if len(message_text) > 150 else ''}\n\n📎 Includes {file_count} file(s)"
-                else:
-                    message_preview = f"📎 *{file_count} file(s)*"
-                    user_preview = f"📎 {file_count} file(s)"
-        elif message_text:
-            preview_text = message_text[:200] + "..." if len(message_text) > 200 else message_text
-            message_preview = f"> {preview_text}"
-            user_preview = preview_text
+                file_preview = f"📎 File: {file_name}"
+            if message_text:
+                message_preview = f"{message_text[:100]}{'...' if len(message_text) > 100 else ''}\n\n{file_preview}"
+            else:
+                message_preview = file_preview
         else:
-            message_preview = "_[No text content]_"
-            user_preview = "[No text content]"
+            if message_text:
+                message_preview = f"{message_text[:100]}{'...' if len(message_text) > 100 else ''}\n\n📎 {file_count} file(s)"
+            else:
+                message_preview = f"📎 {file_count} file(s)"
+    elif message_text:
+        message_preview = message_text[:100] + ("..." if len(message_text) > 100 else "")
+    else:
+        message_preview = "[No text content]"
 
-        blocks = [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain_text",
-                    "text": "New Deletion Request"
-                }
-            },
-            {
-                "type": "section",
-                "fields": [
+    try:
+        client.views_open(
+            trigger_id=body["trigger_id"],
+            view={
+                "type": "modal",
+                "callback_id": "confirm_deletion_modal",
+                "private_metadata": json.dumps({
+                    "channel_id": channel_id,
+                    "message_ts": message_ts,
+                    "user_id": user_id,
+                    "message_text": message_text[:500] if message_text else "",
+                    "message_author_id": message.get("user"),
+                    "files": message.get("files", [])
+                }),
+                "title": {"type": "plain_text", "text": "Confirm Deletion Request"},
+                "submit": {"type": "plain_text", "text": "Request Deletion"},
+                "close": {"type": "plain_text", "text": "Cancel"},
+                "blocks": [
                     {
-                        "type": "mrkdwn",
-                        "text": f"*Requester:*\n<@{user_id}>"
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": "*You're requesting deletion of this message:*"
+                        }
                     },
                     {
-                        "type": "mrkdwn",
-                        "text": f"*Channel:*\n<#{channel_id}>"
-                    }
-                ]
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Message:*\n{message_preview}"
-                }
-            },
-            {
-                "type": "context",
-                "elements": [
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": f"*Channel:* <#{channel_id}>\n*Message:* {message_preview}"
+                        }
+                    },
                     {
-                        "type": "mrkdwn",
-                        "text": f"<{message_link}|View original message>"
+                        "type": "context",
+                        "elements": [{
+                            "type": "mrkdwn",
+                            "text": "This will send a request to the admin team for review."
+                        }]
                     }
                 ]
-            },
-            {
-                "type": "divider"
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "React with ✅ to approve or ❌ to deny"
-                }
             }
-        ]
-
-        admin_message = client.chat_postMessage(
-            channel=config.ADMIN_REVIEW_CHANNEL,
-            blocks=blocks,
-            text=f"Deletion request from {requester_name}"
         )
+    except Exception as e:
+        logger.error(f"Error opening confirmation modal: {e}")
+        try:
+            client.chat_postMessage(
+                channel=user_id,
+                text=f"❌ Error opening confirmation dialog: {str(e)}"
+            )
+        except:
+            pass
 
-        client.reactions_add(
-            channel=config.ADMIN_REVIEW_CHANNEL,
-            name="white_check_mark",
-            timestamp=admin_message["ts"]
-        )
 
-        client.reactions_add(
-            channel=config.ADMIN_REVIEW_CHANNEL,
-            name="x",
-            timestamp=admin_message["ts"]
-        )
+@app.view("confirm_deletion_modal")
+def handle_confirm_deletion_modal(ack, body, client, logger):
+    """Handle submission of the deletion confirmation modal."""
+    ack()
 
-        request_id = database.create_deletion_request(
-            message_ts=message_ts,
+    user_id = body["user"]["id"]
+
+    try:
+        metadata = json.loads(body["view"]["private_metadata"])
+        channel_id = metadata["channel_id"]
+        message_ts = metadata["message_ts"]
+        message_text = metadata.get("message_text", "")
+        files = metadata.get("files", [])
+
+        # Build message_data dict for process_deletion_request
+        message_data = {"text": message_text, "files": files}
+
+        process_deletion_request(
+            client=client,
+            user_id=user_id,
             channel_id=channel_id,
-            channel_name=channel_name,
-            message_author_id=user_id,
-            message_author_name=requester_name,
-            message_text=message_text,
-            requester_id=user_id,
-            requester_name=requester_name,
-            admin_message_ts=admin_message["ts"]
+            message_ts=message_ts,
+            message_data=message_data,
+            logger=logger
         )
-
-        client.chat_postMessage(
-            channel=user_id,
-            text=f"✅ Your deletion request has been submitted to the admins for review.\n\nMessage from <#{channel_id}>:\n{user_preview}"
-        )
-
-        logger.info(f"Deletion request created: ID={request_id}, User={user_id}, Channel={channel_id}")
 
     except Exception as e:
-        logger.error(f"Error handling deletion request: {e}")
+        logger.error(f"Error handling modal submission: {e}")
         try:
             client.chat_postMessage(
                 channel=user_id,
@@ -204,6 +336,7 @@ def handle_message_shortcut(ack, body, client, logger):
             )
         except:
             pass
+
 
 @app.action("approve_deletion")
 def handle_approve_deletion(ack, body, client, logger):
